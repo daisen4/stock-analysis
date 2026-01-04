@@ -5,12 +5,12 @@ Asset Return Analysis Tool
 """
 
 from __future__ import annotations
-import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from datetime import datetime
+import requests
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -34,24 +34,43 @@ class AssetAnalyzer:
         self.monthly_returns = None
 
     def fetch_data(self):
-        """Yahoo Financeからデータ取得"""
-        print("データを取得中...")
+        """Yahoo Finance APIから直接データ取得"""
+        print("データを取得中（Yahoo Finance API）...")
         for ticker in self.tickers:
             print(f"  {ticker} ({ASSETS[ticker]})...")
             try:
-                # Tickerオブジェクトを直接使用
-                ticker_obj = yf.Ticker(ticker)
-                df = ticker_obj.history(period='max')
+                # Yahoo Finance APIを直接使用（全期間）
+                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=max"
+                headers = {'User-Agent': 'Mozilla/5.0'}
 
-                if not df.empty and 'Close' in df.columns:
-                    self.data[ticker] = df['Close']
-                    print(f"    期間: {df.index[0].date()} ～ {df.index[-1].date()} ({len(df)}日)")
+                response = requests.get(url, headers=headers, timeout=30)
+
+                if response.status_code == 200:
+                    data = response.json()
+
+                    if 'chart' in data and 'result' in data['chart'] and data['chart']['result']:
+                        result = data['chart']['result'][0]
+                        timestamps = result['timestamp']
+                        closes = result['indicators']['quote'][0]['close']
+
+                        # DataFrameに変換
+                        dates = pd.to_datetime(timestamps, unit='s')
+                        prices = pd.Series(closes, index=dates)
+
+                        # NaNを除去
+                        prices = prices.dropna()
+
+                        if len(prices) > 0:
+                            self.data[ticker] = prices
+                            print(f"    期間: {prices.index[0].date()} ～ {prices.index[-1].date()} ({len(prices)}日)")
+                        else:
+                            print(f"    データが空です")
+                    else:
+                        print(f"    APIレスポンスが不正です")
                 else:
-                    print(f"    データが空です")
+                    print(f"    HTTPエラー: {response.status_code}")
             except Exception as e:
                 print(f"    エラー: {e}")
-                import traceback
-                traceback.print_exc()
         print()
 
     def calculate_annual_returns(self):
@@ -158,7 +177,7 @@ class AssetAnalyzer:
         table.scale(1, 1.5)
 
         ax.axis('off')
-        ax.set_title('年別リターン（%）', fontsize=16, fontweight='bold', pad=20)
+        ax.set_title('年別リターン（%）- Yahoo Finance実データ', fontsize=16, fontweight='bold', pad=20)
 
         plt.tight_layout()
         plt.savefig('/Users/daisen4/Project/stock_analysis/asset_returns_table.png', dpi=150, bbox_inches='tight')
@@ -177,7 +196,7 @@ class AssetAnalyzer:
 
         ax.set_xlabel('')
         ax.set_ylabel('年', fontsize=12)
-        ax.set_title('年別リターン ヒートマップ', fontsize=16, fontweight='bold')
+        ax.set_title('年別リターン ヒートマップ - Yahoo Finance実データ', fontsize=16, fontweight='bold')
 
         # X軸ラベルをアセット名に
         ax.set_xticklabels([f"{t}\n{ASSETS[t]}" for t in self.annual_returns.columns], rotation=0)
@@ -268,7 +287,9 @@ class AssetAnalyzer:
             ax.set_ylabel('年', fontsize=12)
             ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 月別リターン',
                         fontsize=16, fontweight='bold')
-            ax.set_xticklabels(range(1, 13))
+            # 実際の月数に応じてラベルを設定
+            month_labels = [int(m) for m in pivot_table.columns]
+            ax.set_xticklabels(month_labels)
 
             plt.tight_layout()
             filename = f'/Users/daisen4/Project/stock_analysis/monthly_returns_{ticker}.png'
