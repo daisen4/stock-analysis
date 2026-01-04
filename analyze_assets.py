@@ -39,8 +39,9 @@ class AssetAnalyzer:
         for ticker in self.tickers:
             print(f"  {ticker} ({ASSETS[ticker]})...")
             try:
-                # Yahoo Finance APIを直接使用（全期間）
-                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=max"
+                # Yahoo Finance APIを直接使用（過去20年分の日次データ）
+                # 注: range=maxだと月次データになってしまうため、20yを指定
+                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=20y"
                 headers = {'User-Agent': 'Mozilla/5.0'}
 
                 response = requests.get(url, headers=headers, timeout=30)
