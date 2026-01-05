@@ -602,31 +602,63 @@ class AssetAnalyzer:
 
             # 資産クラスの場合
             else:
-                values = self.annual_returns[ticker].values
-                years = self.annual_returns.index
-                x = np.arange(len(years))
+                # ^TNXは水準を表示、その他は変化率を表示
+                if ticker == '^TNX':
+                    # 年末の利回り水準を取得
+                    tnx_levels = {}
+                    for year in self.annual_returns.index:
+                        year_data = self.data['^TNX'][self.data['^TNX'].index.year == year]
+                        if len(year_data) > 0:
+                            tnx_levels[year] = year_data.iloc[-1]  # 年末の利回り
 
-                # 棒グラフ作成（プラスは緑、マイナスは赤）
-                bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
-                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+                    years = list(tnx_levels.keys())
+                    values = list(tnx_levels.values())
+                    x = np.arange(len(years))
 
-                # ゼロラインを追加
-                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+                    # 棒グラフ作成（全て青系で表示）
+                    bar_colors = ['#1f77b4' for _ in values]
+                    bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
 
-                # 平均値を表示
-                avg_return = np.mean(values)
-                ax.axhline(y=avg_return, color='blue', linestyle='--',
-                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.1f}%')
-                ax.legend(loc='upper right', fontsize=9)
+                    # 平均値を表示
+                    avg_level = np.mean(values)
+                    ax.axhline(y=avg_level, color='red', linestyle='--',
+                              linewidth=1.5, alpha=0.7, label=f'平均: {avg_level:.2f}%')
+                    ax.legend(loc='upper right', fontsize=9)
 
-                # ラベルとタイトル
-                ax.set_xlabel('年', fontsize=11)
-                ax.set_ylabel('年次リターン (%)', fontsize=11)
-                ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 年次リターン',
-                            fontsize=14, fontweight='bold', pad=10)
-                ax.set_xticks(x)
-                ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
-                ax.grid(True, alpha=0.3, axis='y')
+                    # ラベルとタイトル
+                    ax.set_xlabel('年', fontsize=11)
+                    ax.set_ylabel('利回り水準 (%)', fontsize=11)
+                    ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 年末利回り水準',
+                                fontsize=14, fontweight='bold', pad=10)
+                    ax.set_xticks(x)
+                    ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
+                    ax.grid(True, alpha=0.3, axis='y')
+                else:
+                    values = self.annual_returns[ticker].values
+                    years = self.annual_returns.index
+                    x = np.arange(len(years))
+
+                    # 棒グラフ作成（プラスは緑、マイナスは赤）
+                    bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
+                    bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+
+                    # ゼロラインを追加
+                    ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+
+                    # 平均値を表示
+                    avg_return = np.mean(values)
+                    ax.axhline(y=avg_return, color='blue', linestyle='--',
+                              linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.1f}%')
+                    ax.legend(loc='upper right', fontsize=9)
+
+                    # ラベルとタイトル
+                    ax.set_xlabel('年', fontsize=11)
+                    ax.set_ylabel('年次リターン (%)', fontsize=11)
+                    ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 年次リターン',
+                                fontsize=14, fontweight='bold', pad=10)
+                    ax.set_xticks(x)
+                    ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
+                    ax.grid(True, alpha=0.3, axis='y')
 
         plt.tight_layout()
         plt.savefig('/Users/daisen4/Project/stock_analysis/annual_returns_bar.png', dpi=150, bbox_inches='tight')
@@ -818,42 +850,78 @@ class AssetAnalyzer:
 
             # 月次データの場合
             else:
-                # 月次データを取得
-                monthly_data = self.monthly_returns[ticker].dropna()
-                values = monthly_data.values
-                dates = monthly_data.index
-                x = np.arange(len(dates))
+                # ^TNXは水準を表示、その他は変化率を表示
+                if ticker == '^TNX':
+                    # 月末の利回り水準を取得
+                    monthly_levels = self.data['^TNX'].resample('M').last().dropna()
+                    values = monthly_levels.values
+                    dates = monthly_levels.index
+                    x = np.arange(len(dates))
 
-                # 棒グラフ作成（プラスは緑、マイナスは赤）
-                bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
-                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.3)
+                    # 棒グラフ作成（全て青系で表示）
+                    bar_colors = ['#1f77b4' for _ in values]
+                    bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.3)
 
-                # ゼロラインを追加
-                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+                    # 平均値を表示
+                    avg_level = np.mean(values)
+                    ax.axhline(y=avg_level, color='red', linestyle='--',
+                              linewidth=1.5, alpha=0.7, label=f'平均: {avg_level:.2f}%')
+                    ax.legend(loc='upper right', fontsize=9)
 
-                # 平均値を表示
-                avg_return = np.mean(values)
-                ax.axhline(y=avg_return, color='blue', linestyle='--',
-                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.2f}%' if ticker == '^TNX' else f'平均: {avg_return:.1f}%')
-                ax.legend(loc='upper right', fontsize=9)
+                    # ラベルとタイトル
+                    ax.set_xlabel('月', fontsize=11)
+                    ax.set_ylabel('利回り水準 (%)', fontsize=11)
+                    ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 月末利回り水準',
+                                fontsize=14, fontweight='bold', pad=10)
 
-                # ラベルとタイトル
-                ax.set_xlabel('月', fontsize=11)
-                ax.set_ylabel('月次リターン (%)', fontsize=11)
-                ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 月次リターン',
-                            fontsize=14, fontweight='bold', pad=10)
+                    # X軸のラベルを間引いて表示（年の始まりのみ表示）
+                    xtick_positions = []
+                    xtick_labels = []
+                    for i, date in enumerate(dates):
+                        if date.month == 1:  # 1月のみ表示
+                            xtick_positions.append(i)
+                            xtick_labels.append(f"{date.year}")
 
-                # X軸のラベルを間引いて表示（年の始まりのみ表示）
-                xtick_positions = []
-                xtick_labels = []
-                for i, date in enumerate(dates):
-                    if date.month == 1:  # 1月のみ表示
-                        xtick_positions.append(i)
-                        xtick_labels.append(f"{date.year}")
+                    ax.set_xticks(xtick_positions)
+                    ax.set_xticklabels(xtick_labels, rotation=45, ha='right', fontsize=9)
+                    ax.grid(True, alpha=0.3, axis='y')
+                else:
+                    # 月次データを取得
+                    monthly_data = self.monthly_returns[ticker].dropna()
+                    values = monthly_data.values
+                    dates = monthly_data.index
+                    x = np.arange(len(dates))
 
-                ax.set_xticks(xtick_positions)
-                ax.set_xticklabels(xtick_labels, rotation=45, ha='right', fontsize=9)
-                ax.grid(True, alpha=0.3, axis='y')
+                    # 棒グラフ作成（プラスは緑、マイナスは赤）
+                    bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
+                    bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.3)
+
+                    # ゼロラインを追加
+                    ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+
+                    # 平均値を表示
+                    avg_return = np.mean(values)
+                    ax.axhline(y=avg_return, color='blue', linestyle='--',
+                              linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.1f}%')
+                    ax.legend(loc='upper right', fontsize=9)
+
+                    # ラベルとタイトル
+                    ax.set_xlabel('月', fontsize=11)
+                    ax.set_ylabel('月次リターン (%)', fontsize=11)
+                    ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 月次リターン',
+                                fontsize=14, fontweight='bold', pad=10)
+
+                    # X軸のラベルを間引いて表示（年の始まりのみ表示）
+                    xtick_positions = []
+                    xtick_labels = []
+                    for i, date in enumerate(dates):
+                        if date.month == 1:  # 1月のみ表示
+                            xtick_positions.append(i)
+                            xtick_labels.append(f"{date.year}")
+
+                    ax.set_xticks(xtick_positions)
+                    ax.set_xticklabels(xtick_labels, rotation=45, ha='right', fontsize=9)
+                    ax.grid(True, alpha=0.3, axis='y')
 
         plt.tight_layout()
         plt.savefig('/Users/daisen4/Project/stock_analysis/monthly_returns_bar.png', dpi=150, bbox_inches='tight')
@@ -1007,59 +1075,90 @@ class AssetAnalyzer:
 
             # 四半期データの場合
             else:
-                # 元の価格データから四半期ごとの変化を計算
-                prices = self.data[ticker]
-                quarterly_changes = {}
+                # ^TNXは水準を表示、その他は変化率を表示
+                if ticker == '^TNX':
+                    # 四半期末の利回り水準を取得
+                    quarterly_levels = self.data['^TNX'].resample('Q').last().dropna()
+                    values = quarterly_levels.values
+                    dates = quarterly_levels.index
+                    x = np.arange(len(dates))
 
-                # 四半期ごとにグループ化
-                for quarter_end in prices.resample('Q').last().index:
-                    quarter_data = prices[prices.index.to_period('Q') == quarter_end.to_period('Q')]
-                    if len(quarter_data) > 1:
-                        start_price = quarter_data.iloc[0]
-                        end_price = quarter_data.iloc[-1]
+                    # 棒グラフ作成（全て青系で表示）
+                    bar_colors = ['#1f77b4' for _ in values]
+                    bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
 
-                        # ^TNXは差分、その他は変化率
-                        if ticker == '^TNX':
-                            change = end_price - start_price  # 差分（%ポイント）
-                        else:
+                    # 平均値を表示
+                    avg_level = np.mean(values)
+                    ax.axhline(y=avg_level, color='red', linestyle='--',
+                              linewidth=1.5, alpha=0.7, label=f'平均: {avg_level:.2f}%')
+                    ax.legend(loc='upper right', fontsize=9)
+
+                    # ラベルとタイトル
+                    ax.set_xlabel('四半期', fontsize=11)
+                    ax.set_ylabel('利回り水準 (%)', fontsize=11)
+                    ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 四半期末利回り水準',
+                                fontsize=14, fontweight='bold', pad=10)
+
+                    # X軸のラベルを間引いて表示（年の始まりのみ表示）
+                    xtick_positions = []
+                    xtick_labels = []
+                    for i, date in enumerate(dates):
+                        if date.month == 3:  # Q1のみ表示
+                            xtick_positions.append(i)
+                            xtick_labels.append(f"{date.year}")
+
+                    ax.set_xticks(xtick_positions)
+                    ax.set_xticklabels(xtick_labels, rotation=45, ha='right', fontsize=9)
+                    ax.grid(True, alpha=0.3, axis='y')
+                else:
+                    # 元の価格データから四半期ごとの変化を計算
+                    prices = self.data[ticker]
+                    quarterly_changes = {}
+
+                    # 四半期ごとにグループ化
+                    for quarter_end in prices.resample('Q').last().index:
+                        quarter_data = prices[prices.index.to_period('Q') == quarter_end.to_period('Q')]
+                        if len(quarter_data) > 1:
+                            start_price = quarter_data.iloc[0]
+                            end_price = quarter_data.iloc[-1]
                             change = (end_price - start_price) / start_price * 100
-                        quarterly_changes[quarter_end] = change
+                            quarterly_changes[quarter_end] = change
 
-                # 四半期データを使用
-                dates = list(quarterly_changes.keys())
-                values = list(quarterly_changes.values())
-                x = np.arange(len(dates))
+                    # 四半期データを使用
+                    dates = list(quarterly_changes.keys())
+                    values = list(quarterly_changes.values())
+                    x = np.arange(len(dates))
 
-                # 棒グラフ作成（プラスは緑、マイナスは赤）
-                bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
-                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+                    # 棒グラフ作成（プラスは緑、マイナスは赤）
+                    bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
+                    bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
 
-                # ゼロラインを追加
-                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+                    # ゼロラインを追加
+                    ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
 
-                # 平均値を表示
-                avg_return = np.mean(values)
-                ax.axhline(y=avg_return, color='blue', linestyle='--',
-                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.2f}%' if ticker == '^TNX' else f'平均: {avg_return:.1f}%')
-                ax.legend(loc='upper right', fontsize=9)
+                    # 平均値を表示
+                    avg_return = np.mean(values)
+                    ax.axhline(y=avg_return, color='blue', linestyle='--',
+                              linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.1f}%')
+                    ax.legend(loc='upper right', fontsize=9)
 
-                # ラベルとタイトル
-                ax.set_xlabel('四半期', fontsize=11)
-                ax.set_ylabel('四半期リターン (%)', fontsize=11)
-                ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 四半期リターン',
-                            fontsize=14, fontweight='bold', pad=10)
+                    # ラベルとタイトル
+                    ax.set_xlabel('四半期', fontsize=11)
+                    ax.set_ylabel('四半期リターン (%)', fontsize=11)
+                    ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 四半期リターン',
+                                fontsize=14, fontweight='bold', pad=10)
 
-                # X軸のラベルを間引いて表示（年の始まりのみ表示）
-                xtick_positions = []
-                xtick_labels = []
-                for i, date in enumerate(dates):
-                    if date.month == 3:  # Q1のみ表示
-                        xtick_positions.append(i)
-                        xtick_labels.append(f"{date.year}")
+                    # X軸のラベルを間引いて表示（年の始まりのみ表示）
+                    xtick_positions = []
+                    xtick_labels = []
+                    for i, date in enumerate(dates):
+                        if date.month == 3:  # Q1のみ表示
+                            xtick_positions.append(i)
+                            xtick_labels.append(f"{date.year}")
 
-                ax.set_xticks(xtick_positions)
-                ax.set_xticklabels(xtick_labels, rotation=45, ha='right', fontsize=9)
-                ax.grid(True, alpha=0.3, axis='y')
+                    ax.set_xticks(xtick_positions)
+                    ax.set_xticklabels(xtick_labels, rotation=45, ha='right', fontsize=9)
+                    ax.grid(True, alpha=0.3, axis='y')
 
         plt.tight_layout()
         plt.savefig('/Users/daisen4/Project/stock_analysis/quarterly_returns_bar.png', dpi=150, bbox_inches='tight')
