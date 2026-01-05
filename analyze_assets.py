@@ -21,7 +21,7 @@ plt.rcParams['axes.unicode_minus'] = False
 # 分析対象アセット
 ASSETS = {
     'SPY': 'S&P500 (米国株)',
-    'TLT': '米国長期国債',
+    '^TNX': '米国10年債利回り',
     'GLD': '金',
     'USO': '原油'
 }
@@ -30,8 +30,10 @@ class AssetAnalyzer:
     def __init__(self, tickers):
         self.tickers = tickers
         self.data = {}
+        self.eps_data = None
         self.annual_returns = None
         self.monthly_returns = None
+        self.eps_growth = None
 
     def fetch_data(self):
         """Yahoo Finance APIから直接データ取得"""
@@ -74,6 +76,60 @@ class AssetAnalyzer:
                 print(f"    エラー: {e}")
         print()
 
+    def fetch_sp500_eps(self):
+        """S&P500のEPSデータを取得（multpl.comより）"""
+        print("S&P500のEPSデータを取得中...")
+
+        # S&P500の年次EPS（インフレ調整済み）
+        # データソース: multpl.com
+        eps_data = {
+            2025: 224.07,
+            2024: 216.29,
+            2023: 203.76,
+            2022: 189.05,
+            2021: 230.52,
+            2020: 117.38,
+            2019: 176.28,
+            2018: 171.16,
+            2017: 144.77,
+            2016: 127.20,
+            2015: 118.82,
+            2014: 141.52,
+            2013: 139.65,
+            2012: 122.38,
+            2011: 125.14,
+            2010: 114.62,
+            2009: 76.66,
+            2008: 22.99,
+            2007: 102.34,
+            2006: 115.58,
+            2005: 98.95
+        }
+
+        self.eps_data = pd.Series(eps_data).sort_index()
+        print(f"  {len(self.eps_data)}年分のEPSデータを取得しました")
+        print(f"  期間: {self.eps_data.index[0]}年 ～ {self.eps_data.index[-1]}年\n")
+
+    def calculate_eps_growth(self):
+        """EPS成長率を計算"""
+        if self.eps_data is None:
+            return
+
+        print("EPS成長率を計算中...")
+        eps_growth = {}
+
+        for i in range(1, len(self.eps_data)):
+            year = self.eps_data.index[i]
+            prev_eps = self.eps_data.iloc[i-1]
+            curr_eps = self.eps_data.iloc[i]
+
+            if prev_eps > 0:
+                growth_rate = (curr_eps - prev_eps) / prev_eps * 100
+                eps_growth[year] = growth_rate
+
+        self.eps_growth = pd.Series(eps_growth)
+        print(f"  {len(self.eps_growth)}年分のEPS成長率を計算しました\n")
+
     def calculate_annual_returns(self):
         """年別リターンを計算"""
         print("年別リターンを計算中...")
@@ -89,7 +145,12 @@ class AssetAnalyzer:
                     # 年初と年末の価格でリターン計算
                     start_price = year_data.iloc[0]
                     end_price = year_data.iloc[-1]
-                    ret = (end_price - start_price) / start_price * 100
+
+                    # ^TNXは利回りなので差分で計算、他は変化率
+                    if ticker == '^TNX':
+                        ret = end_price - start_price  # 差分（%ポイント）
+                    else:
+                        ret = (end_price - start_price) / start_price * 100
                     yearly_ret[year] = ret
 
             annual_returns[ticker] = yearly_ret
@@ -112,7 +173,12 @@ class AssetAnalyzer:
                 if len(month_data) > 1:
                     start_price = month_data.iloc[0]
                     end_price = month_data.iloc[-1]
-                    ret = (end_price - start_price) / start_price * 100
+
+                    # ^TNXは利回りなので差分で計算、他は変化率
+                    if ticker == '^TNX':
+                        ret = end_price - start_price  # 差分（%ポイント）
+                    else:
+                        ret = (end_price - start_price) / start_price * 100
                     monthly_ret[year_month] = ret
 
             monthly_returns[ticker] = monthly_ret
@@ -136,6 +202,16 @@ class AssetAnalyzer:
             print(f"  最高リターン: {returns.max():.2f}% ({returns.idxmax()}年)")
             print(f"  最低リターン: {returns.min():.2f}% ({returns.idxmin()}年)")
             print(f"  プラスの年: {(returns > 0).sum()}年 ({(returns > 0).sum() / len(returns) * 100:.1f}%)")
+
+        # EPS成長率の統計
+        if self.eps_growth is not None and len(self.eps_growth) > 0:
+            print(f"\nS&P500 EPS成長率")
+            print(f"  データ期間: {len(self.eps_growth)}年")
+            print(f"  平均EPS成長率: {self.eps_growth.mean():.2f}%")
+            print(f"  標準偏差: {self.eps_growth.std():.2f}%")
+            print(f"  最高成長率: {self.eps_growth.max():.2f}% ({self.eps_growth.idxmax()}年)")
+            print(f"  最低成長率: {self.eps_growth.min():.2f}% ({self.eps_growth.idxmin()}年)")
+            print(f"  プラスの年: {(self.eps_growth > 0).sum()}年 ({(self.eps_growth > 0).sum() / len(self.eps_growth) * 100:.1f}%)")
 
         print("\n" + "="*80 + "\n")
 
@@ -235,35 +311,111 @@ class AssetAnalyzer:
         print("  保存: cumulative_returns.png\n")
 
     def create_annual_bar_chart(self):
-        """年別リターンの棒グラフを作成"""
+        """年別リターンの棒グラフを作成（5つのグラフを縦に並べて1つのファイルとして保存）"""
         print("年別リターンの棒グラフを作成中...")
 
-        fig, ax = plt.subplots(figsize=(16, 8))
+        # 5つのサブプロットを縦に並べる（4資産 + EPS成長率）
+        fig, axes = plt.subplots(5, 1, figsize=(16, 25))
 
-        # 棒グラフの設定
-        x = np.arange(len(self.annual_returns.index))
-        width = 0.2
-        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
-
+        # 4つの資産のグラフ
         for i, ticker in enumerate(self.annual_returns.columns):
+            ax = axes[i]
             values = self.annual_returns[ticker].values
-            offset = width * (i - 1.5)
-            bars = ax.bar(x + offset, values, width,
-                         label=f"{ticker} ({ASSETS[ticker]})",
-                         color=colors[i], alpha=0.8)
+            years = self.annual_returns.index
+            x = np.arange(len(years))
 
-        ax.axhline(y=0, color='black', linestyle='-', linewidth=0.8)
-        ax.set_xlabel('年', fontsize=12)
-        ax.set_ylabel('年次リターン (%)', fontsize=12)
-        ax.set_title('資産クラス別 年次リターン', fontsize=16, fontweight='bold')
-        ax.set_xticks(x)
-        ax.set_xticklabels(self.annual_returns.index, rotation=45, ha='right')
-        ax.legend(loc='best', fontsize=10)
-        ax.grid(True, alpha=0.3, axis='y')
+            # 棒グラフ作成（プラスは緑、マイナスは赤）
+            bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
+            bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+
+            # ゼロラインを追加
+            ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+
+            # 平均値を表示
+            avg_return = np.mean(values)
+            ax.axhline(y=avg_return, color='blue', linestyle='--',
+                      linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.1f}%')
+            ax.legend(loc='upper right', fontsize=9)
+
+            # ラベルとタイトル
+            ax.set_xlabel('年', fontsize=11)
+            ax.set_ylabel('年次リターン (%)', fontsize=11)
+            ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 年次リターン',
+                        fontsize=14, fontweight='bold', pad=10)
+            ax.set_xticks(x)
+            ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
+            ax.grid(True, alpha=0.3, axis='y')
+
+        # 5番目のグラフ: EPS成長率
+        if self.eps_growth is not None and len(self.eps_growth) > 0:
+            ax = axes[4]
+            years = self.eps_growth.index
+            values = self.eps_growth.values
+            x = np.arange(len(years))
+
+            # 棒グラフ作成（プラスは緑、マイナスは赤）
+            bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
+            bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+
+            # ゼロラインを追加
+            ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+
+            # 平均値を表示
+            avg_growth = np.mean(values)
+            ax.axhline(y=avg_growth, color='blue', linestyle='--',
+                      linewidth=1.5, alpha=0.7, label=f'平均: {avg_growth:.1f}%')
+            ax.legend(loc='upper right', fontsize=9)
+
+            # ラベルとタイトル
+            ax.set_xlabel('年', fontsize=11)
+            ax.set_ylabel('EPS成長率 (%)', fontsize=11)
+            ax.set_title('S&P500 EPS成長率（インフレ調整済み）',
+                        fontsize=14, fontweight='bold', pad=10)
+            ax.set_xticks(x)
+            ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
+            ax.grid(True, alpha=0.3, axis='y')
 
         plt.tight_layout()
         plt.savefig('/Users/daisen4/Project/stock_analysis/annual_returns_bar.png', dpi=150, bbox_inches='tight')
         print("  保存: annual_returns_bar.png\n")
+
+    def create_eps_growth_chart(self):
+        """EPS成長率のグラフを作成"""
+        if self.eps_growth is None or len(self.eps_growth) == 0:
+            return
+
+        print("EPS成長率のグラフを作成中...")
+
+        fig, ax = plt.subplots(figsize=(14, 6))
+
+        years = self.eps_growth.index
+        values = self.eps_growth.values
+        x = np.arange(len(years))
+
+        # 棒グラフ作成（プラスは緑、マイナスは赤）
+        bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
+        bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+
+        # ゼロラインを追加
+        ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+
+        # 平均値を表示
+        avg_growth = np.mean(values)
+        ax.axhline(y=avg_growth, color='blue', linestyle='--',
+                  linewidth=1.5, alpha=0.7, label=f'平均: {avg_growth:.1f}%')
+
+        # ラベルとタイトル
+        ax.set_xlabel('年', fontsize=12)
+        ax.set_ylabel('EPS成長率 (%)', fontsize=12)
+        ax.set_title('S&P500 EPS成長率（インフレ調整済み）', fontsize=16, fontweight='bold')
+        ax.set_xticks(x)
+        ax.set_xticklabels(years, rotation=45, ha='right', fontsize=10)
+        ax.grid(True, alpha=0.3, axis='y')
+        ax.legend(loc='upper right', fontsize=10)
+
+        plt.tight_layout()
+        plt.savefig('/Users/daisen4/Project/stock_analysis/eps_growth.png', dpi=150, bbox_inches='tight')
+        print("  保存: eps_growth.png\n")
 
     def create_monthly_heatmap(self):
         """月別リターンのヒートマップを作成"""
@@ -307,6 +459,10 @@ class AssetAnalyzer:
             print("データが取得できませんでした")
             return
 
+        # EPSデータの取得と計算
+        self.fetch_sp500_eps()
+        self.calculate_eps_growth()
+
         self.calculate_annual_returns()
         self.calculate_monthly_returns()
         self.print_statistics()
@@ -316,6 +472,7 @@ class AssetAnalyzer:
         self.create_heatmap()
         self.create_cumulative_returns_plot()
         self.create_annual_bar_chart()
+        self.create_eps_growth_chart()
         self.create_monthly_heatmap()
 
         print("="*80)
