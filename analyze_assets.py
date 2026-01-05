@@ -314,66 +314,80 @@ class AssetAnalyzer:
         """年別リターンの棒グラフを作成（5つのグラフを縦に並べて1つのファイルとして保存）"""
         print("年別リターンの棒グラフを作成中...")
 
-        # 5つのサブプロットを縦に並べる（4資産 + EPS成長率）
+        # 5つのサブプロットを縦に並べる
+        # 順番: 1.利回り 2.EPS成長率 3.SPY 4.GLD 5.USO
         fig, axes = plt.subplots(5, 1, figsize=(16, 25))
 
-        # 4つの資産のグラフ
-        for i, ticker in enumerate(self.annual_returns.columns):
-            ax = axes[i]
-            values = self.annual_returns[ticker].values
-            years = self.annual_returns.index
-            x = np.arange(len(years))
+        # グラフの順番を指定
+        plot_order = [
+            ('^TNX', 0),   # 1番目: 利回り
+            ('EPS', 1),    # 2番目: EPS成長率
+            ('SPY', 2),    # 3番目: S&P500
+            ('GLD', 3),    # 4番目: 金
+            ('USO', 4)     # 5番目: 原油
+        ]
 
-            # 棒グラフ作成（プラスは緑、マイナスは赤）
-            bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
-            bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+        for ticker, idx in plot_order:
+            ax = axes[idx]
 
-            # ゼロラインを追加
-            ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+            # EPS成長率の場合
+            if ticker == 'EPS':
+                if self.eps_growth is None or len(self.eps_growth) == 0:
+                    continue
 
-            # 平均値を表示
-            avg_return = np.mean(values)
-            ax.axhline(y=avg_return, color='blue', linestyle='--',
-                      linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.1f}%')
-            ax.legend(loc='upper right', fontsize=9)
+                years = self.eps_growth.index
+                values = self.eps_growth.values
+                x = np.arange(len(years))
 
-            # ラベルとタイトル
-            ax.set_xlabel('年', fontsize=11)
-            ax.set_ylabel('年次リターン (%)', fontsize=11)
-            ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 年次リターン',
-                        fontsize=14, fontweight='bold', pad=10)
-            ax.set_xticks(x)
-            ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
-            ax.grid(True, alpha=0.3, axis='y')
+                # 棒グラフ作成（プラスは緑、マイナスは赤）
+                bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
+                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
 
-        # 5番目のグラフ: EPS成長率
-        if self.eps_growth is not None and len(self.eps_growth) > 0:
-            ax = axes[4]
-            years = self.eps_growth.index
-            values = self.eps_growth.values
-            x = np.arange(len(years))
+                # ゼロラインを追加
+                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
 
-            # 棒グラフ作成（プラスは緑、マイナスは赤）
-            bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
-            bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+                # 平均値を表示
+                avg_growth = np.mean(values)
+                ax.axhline(y=avg_growth, color='blue', linestyle='--',
+                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_growth:.1f}%')
+                ax.legend(loc='upper right', fontsize=9)
 
-            # ゼロラインを追加
-            ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+                # ラベルとタイトル
+                ax.set_xlabel('年', fontsize=11)
+                ax.set_ylabel('EPS成長率 (%)', fontsize=11)
+                ax.set_title('S&P500 EPS成長率（インフレ調整済み）',
+                            fontsize=14, fontweight='bold', pad=10)
+                ax.set_xticks(x)
+                ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
+                ax.grid(True, alpha=0.3, axis='y')
 
-            # 平均値を表示
-            avg_growth = np.mean(values)
-            ax.axhline(y=avg_growth, color='blue', linestyle='--',
-                      linewidth=1.5, alpha=0.7, label=f'平均: {avg_growth:.1f}%')
-            ax.legend(loc='upper right', fontsize=9)
+            # 資産クラスの場合
+            else:
+                values = self.annual_returns[ticker].values
+                years = self.annual_returns.index
+                x = np.arange(len(years))
 
-            # ラベルとタイトル
-            ax.set_xlabel('年', fontsize=11)
-            ax.set_ylabel('EPS成長率 (%)', fontsize=11)
-            ax.set_title('S&P500 EPS成長率（インフレ調整済み）',
-                        fontsize=14, fontweight='bold', pad=10)
-            ax.set_xticks(x)
-            ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
-            ax.grid(True, alpha=0.3, axis='y')
+                # 棒グラフ作成（プラスは緑、マイナスは赤）
+                bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
+                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+
+                # ゼロラインを追加
+                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+
+                # 平均値を表示
+                avg_return = np.mean(values)
+                ax.axhline(y=avg_return, color='blue', linestyle='--',
+                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.1f}%')
+                ax.legend(loc='upper right', fontsize=9)
+
+                # ラベルとタイトル
+                ax.set_xlabel('年', fontsize=11)
+                ax.set_ylabel('年次リターン (%)', fontsize=11)
+                ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 年次リターン',
+                            fontsize=14, fontweight='bold', pad=10)
+                ax.set_xticks(x)
+                ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
+                ax.grid(True, alpha=0.3, axis='y')
 
         plt.tight_layout()
         plt.savefig('/Users/daisen4/Project/stock_analysis/annual_returns_bar.png', dpi=150, bbox_inches='tight')
@@ -416,6 +430,100 @@ class AssetAnalyzer:
         plt.tight_layout()
         plt.savefig('/Users/daisen4/Project/stock_analysis/eps_growth.png', dpi=150, bbox_inches='tight')
         print("  保存: eps_growth.png\n")
+
+    def create_monthly_bar_chart(self):
+        """月別リターンの棒グラフを作成（5つのグラフを縦に並べて1つのファイルとして保存）"""
+        print("月別リターンの棒グラフを作成中...")
+
+        # 5つのサブプロットを縦に並べる
+        # 順番: 1.利回り 2.EPS成長率 3.SPY 4.GLD 5.USO
+        fig, axes = plt.subplots(5, 1, figsize=(16, 25))
+
+        # グラフの順番を指定
+        plot_order = [
+            ('^TNX', 0),   # 1番目: 利回り
+            ('EPS', 1),    # 2番目: EPS成長率（年次データ）
+            ('SPY', 2),    # 3番目: S&P500
+            ('GLD', 3),    # 4番目: 金
+            ('USO', 4)     # 5番目: 原油
+        ]
+
+        for ticker, idx in plot_order:
+            ax = axes[idx]
+
+            # EPS成長率の場合（年次データを表示）
+            if ticker == 'EPS':
+                if self.eps_growth is None or len(self.eps_growth) == 0:
+                    continue
+
+                years = self.eps_growth.index
+                values = self.eps_growth.values
+                x = np.arange(len(years))
+
+                # 棒グラフ作成（プラスは緑、マイナスは赤）
+                bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
+                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+
+                # ゼロラインを追加
+                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+
+                # 平均値を表示
+                avg_growth = np.mean(values)
+                ax.axhline(y=avg_growth, color='blue', linestyle='--',
+                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_growth:.1f}%')
+                ax.legend(loc='upper right', fontsize=9)
+
+                # ラベルとタイトル
+                ax.set_xlabel('年', fontsize=11)
+                ax.set_ylabel('EPS成長率 (%)', fontsize=11)
+                ax.set_title('S&P500 EPS成長率（インフレ調整済み・年次）',
+                            fontsize=14, fontweight='bold', pad=10)
+                ax.set_xticks(x)
+                ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
+                ax.grid(True, alpha=0.3, axis='y')
+
+            # 月次データの場合
+            else:
+                # 月次データを取得
+                monthly_data = self.monthly_returns[ticker].dropna()
+                values = monthly_data.values
+                dates = monthly_data.index
+                x = np.arange(len(dates))
+
+                # 棒グラフ作成（プラスは緑、マイナスは赤）
+                bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
+                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.3)
+
+                # ゼロラインを追加
+                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+
+                # 平均値を表示
+                avg_return = np.mean(values)
+                ax.axhline(y=avg_return, color='blue', linestyle='--',
+                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.1f}%')
+                ax.legend(loc='upper right', fontsize=9)
+
+                # ラベルとタイトル
+                ax.set_xlabel('月', fontsize=11)
+                ax.set_ylabel('月次リターン (%)', fontsize=11)
+                ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 月次リターン',
+                            fontsize=14, fontweight='bold', pad=10)
+
+                # X軸のラベルを間引いて表示（年の始まりのみ表示）
+                xtick_positions = []
+                xtick_labels = []
+                for i, date in enumerate(dates):
+                    if date.month == 1:  # 1月のみ表示
+                        xtick_positions.append(i)
+                        xtick_labels.append(f"{date.year}")
+
+                ax.set_xticks(xtick_positions)
+                ax.set_xticklabels(xtick_labels, rotation=45, ha='right', fontsize=9)
+                ax.grid(True, alpha=0.3, axis='y')
+
+        plt.tight_layout()
+        plt.savefig('/Users/daisen4/Project/stock_analysis/monthly_returns_bar.png', dpi=150, bbox_inches='tight')
+        print("  保存: monthly_returns_bar.png\n")
 
     def create_monthly_heatmap(self):
         """月別リターンのヒートマップを作成"""
@@ -467,13 +575,9 @@ class AssetAnalyzer:
         self.calculate_monthly_returns()
         self.print_statistics()
 
-        # 可視化
-        self.create_annual_returns_table()
-        self.create_heatmap()
-        self.create_cumulative_returns_plot()
+        # 可視化（年次と月次の棒グラフを出力）
         self.create_annual_bar_chart()
-        self.create_eps_growth_chart()
-        self.create_monthly_heatmap()
+        self.create_monthly_bar_chart()
 
         print("="*80)
         print("分析完了！")
