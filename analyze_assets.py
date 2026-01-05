@@ -500,7 +500,7 @@ class AssetAnalyzer:
                 # 平均値を表示
                 avg_return = np.mean(values)
                 ax.axhline(y=avg_return, color='blue', linestyle='--',
-                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.1f}%')
+                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.2f}%' if ticker == '^TNX' else f'平均: {avg_return:.1f}%')
                 ax.legend(loc='upper right', fontsize=9)
 
                 # ラベルとタイトル
@@ -524,6 +524,117 @@ class AssetAnalyzer:
         plt.tight_layout()
         plt.savefig('/Users/daisen4/Project/stock_analysis/monthly_returns_bar.png', dpi=150, bbox_inches='tight')
         print("  保存: monthly_returns_bar.png\n")
+
+    def create_quarterly_bar_chart(self):
+        """四半期リターンの棒グラフを作成（5つのグラフを縦に並べて1つのファイルとして保存）"""
+        print("四半期リターンの棒グラフを作成中...")
+
+        # 5つのサブプロットを縦に並べる
+        # 順番: 1.利回り 2.EPS成長率 3.SPY 4.GLD 5.USO
+        fig, axes = plt.subplots(5, 1, figsize=(16, 25))
+
+        # グラフの順番を指定
+        plot_order = [
+            ('^TNX', 0),   # 1番目: 利回り
+            ('EPS', 1),    # 2番目: EPS成長率（年次データ）
+            ('SPY', 2),    # 3番目: S&P500
+            ('GLD', 3),    # 4番目: 金
+            ('USO', 4)     # 5番目: 原油
+        ]
+
+        for ticker, idx in plot_order:
+            ax = axes[idx]
+
+            # EPS成長率の場合（年次データを表示）
+            if ticker == 'EPS':
+                if self.eps_growth is None or len(self.eps_growth) == 0:
+                    continue
+
+                years = self.eps_growth.index
+                values = self.eps_growth.values
+                x = np.arange(len(years))
+
+                # 棒グラフ作成（プラスは緑、マイナスは赤）
+                bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
+                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+
+                # ゼロラインを追加
+                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+
+                # 平均値を表示
+                avg_growth = np.mean(values)
+                ax.axhline(y=avg_growth, color='blue', linestyle='--',
+                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_growth:.1f}%')
+                ax.legend(loc='upper right', fontsize=9)
+
+                # ラベルとタイトル
+                ax.set_xlabel('年', fontsize=11)
+                ax.set_ylabel('EPS成長率 (%)', fontsize=11)
+                ax.set_title('S&P500 EPS成長率（インフレ調整済み・年次）',
+                            fontsize=14, fontweight='bold', pad=10)
+                ax.set_xticks(x)
+                ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
+                ax.grid(True, alpha=0.3, axis='y')
+
+            # 四半期データの場合
+            else:
+                # 元の価格データから四半期ごとの変化を計算
+                prices = self.data[ticker]
+                quarterly_changes = {}
+
+                # 四半期ごとにグループ化
+                for quarter_end in prices.resample('Q').last().index:
+                    quarter_data = prices[prices.index.to_period('Q') == quarter_end.to_period('Q')]
+                    if len(quarter_data) > 1:
+                        start_price = quarter_data.iloc[0]
+                        end_price = quarter_data.iloc[-1]
+
+                        # ^TNXは差分、その他は変化率
+                        if ticker == '^TNX':
+                            change = end_price - start_price  # 差分（%ポイント）
+                        else:
+                            change = (end_price - start_price) / start_price * 100
+                        quarterly_changes[quarter_end] = change
+
+                # 四半期データを使用
+                dates = list(quarterly_changes.keys())
+                values = list(quarterly_changes.values())
+                x = np.arange(len(dates))
+
+                # 棒グラフ作成（プラスは緑、マイナスは赤）
+                bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
+                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+
+                # ゼロラインを追加
+                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+
+                # 平均値を表示
+                avg_return = np.mean(values)
+                ax.axhline(y=avg_return, color='blue', linestyle='--',
+                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_return:.2f}%' if ticker == '^TNX' else f'平均: {avg_return:.1f}%')
+                ax.legend(loc='upper right', fontsize=9)
+
+                # ラベルとタイトル
+                ax.set_xlabel('四半期', fontsize=11)
+                ax.set_ylabel('四半期リターン (%)', fontsize=11)
+                ax.set_title(f'{ticker} ({ASSETS[ticker]}) - 四半期リターン',
+                            fontsize=14, fontweight='bold', pad=10)
+
+                # X軸のラベルを間引いて表示（年の始まりのみ表示）
+                xtick_positions = []
+                xtick_labels = []
+                for i, date in enumerate(dates):
+                    if date.month == 3:  # Q1のみ表示
+                        xtick_positions.append(i)
+                        xtick_labels.append(f"{date.year}")
+
+                ax.set_xticks(xtick_positions)
+                ax.set_xticklabels(xtick_labels, rotation=45, ha='right', fontsize=9)
+                ax.grid(True, alpha=0.3, axis='y')
+
+        plt.tight_layout()
+        plt.savefig('/Users/daisen4/Project/stock_analysis/quarterly_returns_bar.png', dpi=150, bbox_inches='tight')
+        print("  保存: quarterly_returns_bar.png\n")
 
     def create_monthly_heatmap(self):
         """月別リターンのヒートマップを作成"""
@@ -575,9 +686,10 @@ class AssetAnalyzer:
         self.calculate_monthly_returns()
         self.print_statistics()
 
-        # 可視化（年次と月次の棒グラフを出力）
+        # 可視化（年次、月次、四半期の棒グラフを出力）
         self.create_annual_bar_chart()
         self.create_monthly_bar_chart()
+        self.create_quarterly_bar_chart()
 
         print("="*80)
         print("分析完了！")
