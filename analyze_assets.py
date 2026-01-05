@@ -35,6 +35,7 @@ class AssetAnalyzer:
         self.core_pce_data = None
         self.real_rate_data = None
         self.per_data = None
+        self.ff_rate_data = None
         self.annual_returns = None
         self.monthly_returns = None
         self.eps_growth = None
@@ -202,6 +203,40 @@ class AssetAnalyzer:
         print(f"  {len(self.core_pce_data)}年分のCore PCEデータを取得しました")
         print(f"  期間: {self.core_pce_data.index[0]}年 ～ {self.core_pce_data.index[-1]}年\n")
 
+    def fetch_ff_rate_data(self):
+        """米国FF金利データを取得（FRBより）"""
+        print("米国FF金利データを取得中...")
+
+        # Federal Funds Rate（年末時点の政策金利）
+        # データソース: Federal Reserve
+        ff_rate_data = {
+            2025: 4.50,  # 最新（12月時点、予想）
+            2024: 4.38,
+            2023: 5.33,
+            2022: 4.33,
+            2021: 0.08,
+            2020: 0.09,
+            2019: 1.55,
+            2018: 2.40,
+            2017: 1.42,
+            2016: 0.65,
+            2015: 0.36,
+            2014: 0.12,
+            2013: 0.12,
+            2012: 0.16,
+            2011: 0.08,
+            2010: 0.18,
+            2009: 0.12,
+            2008: 0.16,
+            2007: 4.24,
+            2006: 5.24,
+            2005: 4.16
+        }
+
+        self.ff_rate_data = pd.Series(ff_rate_data).sort_index()
+        print(f"  {len(self.ff_rate_data)}年分のFF金利データを取得しました")
+        print(f"  期間: {self.ff_rate_data.index[0]}年 ～ {self.ff_rate_data.index[-1]}年\n")
+
     def calculate_real_rate_and_per(self):
         """実質金利とPERを計算"""
         print("実質金利とPERを計算中...")
@@ -339,6 +374,15 @@ class AssetAnalyzer:
             print(f"  最高Core PCE: {self.core_pce_data.max():.2f}% ({self.core_pce_data.idxmax()}年)")
             print(f"  最低Core PCE: {self.core_pce_data.min():.2f}% ({self.core_pce_data.idxmin()}年)")
 
+        # FF金利の統計
+        if self.ff_rate_data is not None and len(self.ff_rate_data) > 0:
+            print(f"\n米国FF金利（政策金利）")
+            print(f"  データ期間: {len(self.ff_rate_data)}年")
+            print(f"  平均FF金利: {self.ff_rate_data.mean():.2f}%")
+            print(f"  標準偏差: {self.ff_rate_data.std():.2f}%")
+            print(f"  最高FF金利: {self.ff_rate_data.max():.2f}% ({self.ff_rate_data.idxmax()}年)")
+            print(f"  最低FF金利: {self.ff_rate_data.min():.2f}% ({self.ff_rate_data.idxmin()}年)")
+
         # 実質金利の統計
         if self.real_rate_data is not None and len(self.real_rate_data) > 0:
             print(f"\n実質金利（10年債 - Core PCE）")
@@ -455,91 +499,62 @@ class AssetAnalyzer:
         print("  保存: cumulative_returns.png\n")
 
     def create_annual_bar_chart(self):
-        """年別リターンの棒グラフを作成（8つのグラフを縦に並べて1つのファイルとして保存）"""
+        """年別リターンの棒グラフを作成（6つのグラフを縦に並べて1つのファイルとして保存）"""
         print("年別リターンの棒グラフを作成中...")
 
-        # 8つのサブプロットを縦に並べる
-        # 順番: 1.利回り 2.実質金利 3.Core PCE 4.EPS成長率 5.PER 6.SPY 7.GLD 8.USO
-        fig, axes = plt.subplots(8, 1, figsize=(16, 40))
+        # 6つのサブプロットを縦に並べる
+        # 順番: 1.マクロ指標（利回り・実質金利・Core PCE） 2.EPS成長率 3.PER 4.SPY 5.GLD 6.USO
+        fig, axes = plt.subplots(6, 1, figsize=(16, 30))
 
         # グラフの順番を指定
         plot_order = [
-            ('^TNX', 0),       # 1番目: 利回り
-            ('REAL_RATE', 1),  # 2番目: 実質金利
-            ('CORE_PCE', 2),   # 3番目: Core PCE
-            ('EPS', 3),        # 4番目: EPS成長率
-            ('PER', 4),        # 5番目: PER
-            ('SPY', 5),        # 6番目: S&P500
-            ('GLD', 6),        # 7番目: 金
-            ('USO', 7)         # 8番目: 原油
+            ('MACRO', 0),      # 1番目: マクロ指標統合グラフ
+            ('EPS', 1),        # 2番目: EPS成長率
+            ('PER', 2),        # 3番目: PER
+            ('SPY', 3),        # 4番目: S&P500
+            ('GLD', 4),        # 5番目: 金
+            ('USO', 5)         # 6番目: 原油
         ]
 
         for ticker, idx in plot_order:
             ax = axes[idx]
 
-            # 実質金利の場合
-            if ticker == 'REAL_RATE':
-                if self.real_rate_data is None or len(self.real_rate_data) == 0:
-                    continue
+            # マクロ指標統合グラフの場合
+            if ticker == 'MACRO':
+                # 10年債利回り水準を取得
+                tnx_levels = {}
+                for year in self.annual_returns.index:
+                    year_data = self.data['^TNX'][self.data['^TNX'].index.year == year]
+                    if len(year_data) > 0:
+                        tnx_levels[year] = year_data.iloc[-1]
 
-                years = self.real_rate_data.index
-                values = self.real_rate_data.values
-                x = np.arange(len(years))
+                years = sorted(tnx_levels.keys())
+                tnx_values = [tnx_levels[y] for y in years]
 
-                # 棒グラフ作成（プラスは緑、マイナスは赤）
-                bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
-                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+                # Core PCE、FF金利のデータを取得
+                core_pce_values = [self.core_pce_data[y] if y in self.core_pce_data.index else None for y in years]
+                ff_rate_values = [self.ff_rate_data[y] if y in self.ff_rate_data.index else None for y in years]
+
+                # 折れ線グラフ作成
+                ax.plot(years, tnx_values, marker='o', linewidth=2, label='10年債利回り', color='#1f77b4')
+                ax.plot(years, ff_rate_values, marker='D', linewidth=2, label='FF金利', color='#9467bd')
+                ax.plot(years, core_pce_values, marker='^', linewidth=2, label='Core PCE', color='#ff7f0e')
 
                 # ゼロラインを追加
-                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+                ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5, alpha=0.3)
 
-                # 平均値を表示
-                avg_rate = np.mean(values)
-                ax.axhline(y=avg_rate, color='blue', linestyle='--',
-                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_rate:.2f}%')
-                ax.legend(loc='upper right', fontsize=9)
+                # FRB目標ライン
+                ax.axhline(y=2.0, color='red', linestyle=':', linewidth=1.5, alpha=0.5, label='FRB目標: 2.0%')
 
                 # ラベルとタイトル
                 ax.set_xlabel('年', fontsize=11)
-                ax.set_ylabel('実質金利 (%)', fontsize=11)
-                ax.set_title('実質金利（10年債利回り - Core PCE）',
+                ax.set_ylabel('利回り・インフレ率 (%)', fontsize=11)
+                ax.set_title('マクロ指標推移（10年債利回り・FF金利・Core PCE）',
                             fontsize=14, fontweight='bold', pad=10)
-                ax.set_xticks(x)
+                ax.legend(loc='best', fontsize=9)
+                ax.grid(True, alpha=0.3)
+                ax.set_xticks(years)
                 ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
-                ax.grid(True, alpha=0.3, axis='y')
-
-            # Core PCEの場合
-            elif ticker == 'CORE_PCE':
-                if self.core_pce_data is None or len(self.core_pce_data) == 0:
-                    continue
-
-                years = self.core_pce_data.index
-                values = self.core_pce_data.values
-                x = np.arange(len(years))
-
-                # 棒グラフ作成（全て青系で表示）
-                bar_colors = ['#1f77b4' for _ in values]
-                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
-
-                # ゼロラインを追加
-                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
-
-                # 平均値とFRB目標を表示
-                avg_pce = np.mean(values)
-                ax.axhline(y=avg_pce, color='red', linestyle='--',
-                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_pce:.1f}%')
-                ax.axhline(y=2.0, color='green', linestyle=':',
-                          linewidth=1.5, alpha=0.7, label='FRB目標: 2.0%')
-                ax.legend(loc='upper right', fontsize=9)
-
-                # ラベルとタイトル
-                ax.set_xlabel('年', fontsize=11)
-                ax.set_ylabel('Core PCE (%)', fontsize=11)
-                ax.set_title('米国Core PCE（FRB最重視インフレ指標）',
-                            fontsize=14, fontweight='bold', pad=10)
-                ax.set_xticks(x)
-                ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
-                ax.grid(True, alpha=0.3, axis='y')
 
             # PERの場合
             elif ticker == 'PER':
@@ -703,91 +718,66 @@ class AssetAnalyzer:
         print("  保存: eps_growth.png\n")
 
     def create_monthly_bar_chart(self):
-        """月別リターンの棒グラフを作成（8つのグラフを縦に並べて1つのファイルとして保存）"""
+        """月別リターンの棒グラフを作成（6つのグラフを縦に並べて1つのファイルとして保存）"""
         print("月別リターンの棒グラフを作成中...")
 
-        # 8つのサブプロットを縦に並べる
-        # 順番: 1.利回り 2.実質金利 3.Core PCE 4.EPS成長率 5.PER 6.SPY 7.GLD 8.USO
-        fig, axes = plt.subplots(8, 1, figsize=(16, 40))
+        # 6つのサブプロットを縦に並べる
+        # 順番: 1.マクロ指標（利回り・実質金利・Core PCE） 2.EPS成長率 3.PER 4.SPY 5.GLD 6.USO
+        fig, axes = plt.subplots(6, 1, figsize=(16, 30))
 
         # グラフの順番を指定
         plot_order = [
-            ('^TNX', 0),       # 1番目: 利回り
-            ('REAL_RATE', 1),  # 2番目: 実質金利（年次データ）
-            ('CORE_PCE', 2),   # 3番目: Core PCE（年次データ）
-            ('EPS', 3),        # 4番目: EPS成長率（年次データ）
-            ('PER', 4),        # 5番目: PER（年次データ）
-            ('SPY', 5),        # 6番目: S&P500
-            ('GLD', 6),        # 7番目: 金
-            ('USO', 7)         # 8番目: 原油
+            ('MACRO', 0),      # 1番目: マクロ指標統合グラフ
+            ('EPS', 1),        # 2番目: EPS成長率（年次データ）
+            ('PER', 2),        # 3番目: PER（年次データ）
+            ('SPY', 3),        # 4番目: S&P500
+            ('GLD', 4),        # 5番目: 金
+            ('USO', 5)         # 6番目: 原油
         ]
 
         for ticker, idx in plot_order:
             ax = axes[idx]
 
-            # 実質金利の場合（年次データを表示）
-            if ticker == 'REAL_RATE':
-                if self.real_rate_data is None or len(self.real_rate_data) == 0:
-                    continue
+            # マクロ指標統合グラフの場合
+            if ticker == 'MACRO':
+                # 月末の利回り水準を取得
+                monthly_tnx = self.data['^TNX'].resample('M').last().dropna()
+                dates = monthly_tnx.index
+                tnx_values = monthly_tnx.values
 
-                years = self.real_rate_data.index
-                values = self.real_rate_data.values
-                x = np.arange(len(years))
+                # 年次データをマッピング（Core PCE、FF金利）
+                core_pce_monthly = []
+                ff_rate_monthly = []
+                for date in dates:
+                    year = date.year
+                    if year in self.core_pce_data.index:
+                        core_pce_monthly.append(self.core_pce_data[year])
+                    else:
+                        core_pce_monthly.append(None)
 
-                # 棒グラフ作成（プラスは緑、マイナスは赤）
-                bar_colors = ['#2ca02c' if v > 0 else '#d62728' for v in values]
-                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+                    if year in self.ff_rate_data.index:
+                        ff_rate_monthly.append(self.ff_rate_data[year])
+                    else:
+                        ff_rate_monthly.append(None)
 
-                # ゼロラインを追加
-                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
-
-                # 平均値を表示
-                avg_rate = np.mean(values)
-                ax.axhline(y=avg_rate, color='blue', linestyle='--',
-                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_rate:.2f}%')
-                ax.legend(loc='upper right', fontsize=9)
-
-                # ラベルとタイトル
-                ax.set_xlabel('年', fontsize=11)
-                ax.set_ylabel('実質金利 (%)', fontsize=11)
-                ax.set_title('実質金利（10年債利回り - Core PCE）・年次',
-                            fontsize=14, fontweight='bold', pad=10)
-                ax.set_xticks(x)
-                ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
-                ax.grid(True, alpha=0.3, axis='y')
-
-            # Core PCEの場合（年次データを表示）
-            elif ticker == 'CORE_PCE':
-                if self.core_pce_data is None or len(self.core_pce_data) == 0:
-                    continue
-
-                years = self.core_pce_data.index
-                values = self.core_pce_data.values
-                x = np.arange(len(years))
-
-                # 棒グラフ作成（全て青系で表示）
-                bar_colors = ['#1f77b4' for _ in values]
-                bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+                # 折れ線グラフ作成
+                ax.plot(dates, tnx_values, linewidth=1.5, label='10年債利回り', color='#1f77b4', alpha=0.8)
+                ax.plot(dates, ff_rate_monthly, linewidth=1.5, label='FF金利（年次）', color='#9467bd', alpha=0.8, linestyle='--')
+                ax.plot(dates, core_pce_monthly, linewidth=1.5, label='Core PCE（年次）', color='#ff7f0e', alpha=0.8, linestyle='--')
 
                 # ゼロラインを追加
-                ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+                ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5, alpha=0.3)
 
-                # 平均値とFRB目標を表示
-                avg_pce = np.mean(values)
-                ax.axhline(y=avg_pce, color='red', linestyle='--',
-                          linewidth=1.5, alpha=0.7, label=f'平均: {avg_pce:.1f}%')
-                ax.axhline(y=2.0, color='green', linestyle=':',
-                          linewidth=1.5, alpha=0.7, label='FRB目標: 2.0%')
-                ax.legend(loc='upper right', fontsize=9)
+                # FRB目標ライン
+                ax.axhline(y=2.0, color='red', linestyle=':', linewidth=1.5, alpha=0.5, label='FRB目標: 2.0%')
 
                 # ラベルとタイトル
-                ax.set_xlabel('年', fontsize=11)
-                ax.set_ylabel('Core PCE (%)', fontsize=11)
-                ax.set_title('米国Core PCE（FRB最重視インフレ指標）・年次',
+                ax.set_xlabel('月', fontsize=11)
+                ax.set_ylabel('利回り・インフレ率 (%)', fontsize=11)
+                ax.set_title('マクロ指標推移（10年債利回り：月次、FF金利・Core PCE：年次）',
                             fontsize=14, fontweight='bold', pad=10)
-                ax.set_xticks(x)
-                ax.set_xticklabels(years, rotation=45, ha='right', fontsize=9)
-                ax.grid(True, alpha=0.3, axis='y')
+                ax.legend(loc='best', fontsize=9)
+                ax.grid(True, alpha=0.3)
 
             # EPS成長率の場合（年次データを表示）
             elif ticker == 'EPS':
@@ -928,30 +918,69 @@ class AssetAnalyzer:
         print("  保存: monthly_returns_bar.png\n")
 
     def create_quarterly_bar_chart(self):
-        """四半期リターンの棒グラフを作成（8つのグラフを縦に並べて1つのファイルとして保存）"""
+        """四半期リターンの棒グラフを作成（6つのグラフを縦に並べて1つのファイルとして保存）"""
         print("四半期リターンの棒グラフを作成中...")
 
-        # 8つのサブプロットを縦に並べる
-        # 順番: 1.利回り 2.実質金利 3.Core PCE 4.EPS成長率 5.PER 6.SPY 7.GLD 8.USO
-        fig, axes = plt.subplots(8, 1, figsize=(16, 40))
+        # 6つのサブプロットを縦に並べる
+        # 順番: 1.マクロ指標（利回り・実質金利・Core PCE） 2.EPS成長率 3.PER 4.SPY 5.GLD 6.USO
+        fig, axes = plt.subplots(6, 1, figsize=(16, 30))
 
         # グラフの順番を指定
         plot_order = [
-            ('^TNX', 0),       # 1番目: 利回り
-            ('REAL_RATE', 1),  # 2番目: 実質金利（年次データ）
-            ('CORE_PCE', 2),   # 3番目: Core PCE（年次データ）
-            ('EPS', 3),        # 4番目: EPS成長率（年次データ）
-            ('PER', 4),        # 5番目: PER（年次データ）
-            ('SPY', 5),        # 6番目: S&P500
-            ('GLD', 6),        # 7番目: 金
-            ('USO', 7)         # 8番目: 原油
+            ('MACRO', 0),      # 1番目: マクロ指標統合グラフ
+            ('EPS', 1),        # 2番目: EPS成長率（年次データ）
+            ('PER', 2),        # 3番目: PER（年次データ）
+            ('SPY', 3),        # 4番目: S&P500
+            ('GLD', 4),        # 5番目: 金
+            ('USO', 5)         # 6番目: 原油
         ]
 
         for ticker, idx in plot_order:
             ax = axes[idx]
 
+            # マクロ指標統合グラフの場合
+            if ticker == 'MACRO':
+                # 四半期末の利回り水準を取得
+                quarterly_tnx = self.data['^TNX'].resample('Q').last().dropna()
+                dates = quarterly_tnx.index
+                tnx_values = quarterly_tnx.values
+
+                # 年次データをマッピング（Core PCE、FF金利）
+                core_pce_quarterly = []
+                ff_rate_quarterly = []
+                for date in dates:
+                    year = date.year
+                    if year in self.core_pce_data.index:
+                        core_pce_quarterly.append(self.core_pce_data[year])
+                    else:
+                        core_pce_quarterly.append(None)
+
+                    if year in self.ff_rate_data.index:
+                        ff_rate_quarterly.append(self.ff_rate_data[year])
+                    else:
+                        ff_rate_quarterly.append(None)
+
+                # 折れ線グラフ作成
+                ax.plot(dates, tnx_values, linewidth=1.5, label='10年債利回り', color='#1f77b4', alpha=0.8)
+                ax.plot(dates, ff_rate_quarterly, linewidth=1.5, label='FF金利（年次）', color='#9467bd', alpha=0.8, linestyle='--')
+                ax.plot(dates, core_pce_quarterly, linewidth=1.5, label='Core PCE（年次）', color='#ff7f0e', alpha=0.8, linestyle='--')
+
+                # ゼロラインを追加
+                ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5, alpha=0.3)
+
+                # FRB目標ライン
+                ax.axhline(y=2.0, color='red', linestyle=':', linewidth=1.5, alpha=0.5, label='FRB目標: 2.0%')
+
+                # ラベルとタイトル
+                ax.set_xlabel('四半期', fontsize=11)
+                ax.set_ylabel('利回り・インフレ率 (%)', fontsize=11)
+                ax.set_title('マクロ指標推移（10年債利回り：四半期、FF金利・Core PCE：年次）',
+                            fontsize=14, fontweight='bold', pad=10)
+                ax.legend(loc='best', fontsize=9)
+                ax.grid(True, alpha=0.3)
+
             # 実質金利の場合（年次データを表示）
-            if ticker == 'REAL_RATE':
+            elif ticker == 'REAL_RATE':
                 if self.real_rate_data is None or len(self.real_rate_data) == 0:
                     continue
 
@@ -1211,6 +1240,7 @@ class AssetAnalyzer:
         self.calculate_eps_growth()
         self.fetch_inflation_data()
         self.fetch_core_pce_data()
+        self.fetch_ff_rate_data()
 
         self.calculate_annual_returns()
         self.calculate_monthly_returns()
